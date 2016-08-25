@@ -14,10 +14,10 @@ import CoreLocation
 class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
 
     lazy var tableView: UITableView = {
-        let view: UITableView = UITableView(frame: self.view.bounds, style: .Grouped)
+        let view: UITableView = UITableView(frame: self.view.bounds, style: .grouped)
         view.dataSource = self
         view.delegate = self
-        view.registerClass(UITableViewCell.self, forCellReuseIdentifier: "UITableViewCell")
+        view.register(UITableViewCell.self, forCellReuseIdentifier: "UITableViewCell")
         return view
     }()
     
@@ -30,7 +30,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        self.view.backgroundColor = UIColor.whiteColor()
+        self.view.backgroundColor = UIColor.white()
         let group: Group = Group()
         group.name = "iOS Development Team"
         group.save { (error, ref) in
@@ -44,9 +44,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
                 user.items = ["Book", "Pen"]
                 user.groups.insert(ref.key)
                 user.location = CLLocation(latitude: 0, longitude: 0)
-                user.save({ (error, ref) in
+                user.save { (error, ref) in
                     group.users.insert(ref.key)
-                })
+                }
             }
             
             do {
@@ -56,9 +56,9 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
                 user.age = 34
                 user.items = ["Rip"]
                 user.groups.insert(ref.key)
-                user.save({ (error, ref) in
+                user.save { (error, ref) in
                     group.users.insert(ref.key)
-                })
+                }
             }
             
         }
@@ -91,7 +91,7 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
 //            user.save()
 //        }
         
-        self.datasource = Salada.observe({ [weak self](change) in
+        self.datasource = Salada.observe(block: { [weak self](change) in
             
             guard let tableView: UITableView = self?.tableView else { return }
             
@@ -99,14 +99,15 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
             let insertions: [Int] = change.insertions
             let modifications: [Int] = change.modifications
             
+
             tableView.beginUpdates()
-            tableView.insertRowsAtIndexPaths(insertions.map { NSIndexPath(forRow: $0, inSection: 0) }, withRowAnimation: .Automatic)
-            tableView.deleteRowsAtIndexPaths(deletions.map { NSIndexPath(forRow: $0, inSection: 0) }, withRowAnimation: .Automatic)
-            tableView.reloadRowsAtIndexPaths(modifications.map { NSIndexPath(forRow: $0, inSection: 0) }, withRowAnimation: .Automatic)
+            tableView.insertRows(at: insertions.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+            tableView.deleteRows(at: deletions.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+            tableView.reloadRows(at: modifications.map { IndexPath(row: $0, section: 0) }, with: .automatic)
             tableView.endUpdates()
             
         })
-        let sortDescriptor: NSSortDescriptor = NSSortDescriptor(key: "age", ascending: false)
+        let sortDescriptor: SortDescriptor = SortDescriptor(key: "age", ascending: false)
         self.datasource?.sortDescriptors = [sortDescriptor]
     }
     
@@ -115,24 +116,23 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         // Dispose of any resources that can be recreated.
     }
 
-
-    func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return self.datasource?.count ?? 0
     }
     
-    func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell: UITableViewCell = tableView.dequeueReusableCellWithIdentifier("UITableViewCell", forIndexPath: indexPath)
-        configure(cell, atIndexPath: indexPath)
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell: UITableViewCell = tableView.dequeueReusableCell(withIdentifier: "UITableViewCell", for: indexPath as IndexPath)
+        configure(cell: cell, atIndexPath: indexPath)
         return cell
     }
     
     func configure(cell: UITableViewCell, atIndexPath indexPath: NSIndexPath) {
-        guard let user: User = self.datasource?.objectAtIndex(indexPath.item) else { return }
+        guard let user: User = self.datasource?.object(at: indexPath.item) else { return }
         cell.textLabel?.text = user.name
     }
     
-    func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
-        guard let user: User = self.datasource?.objectAtIndex(indexPath.item) else { return }
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard let user: User = self.datasource?.object(at: indexPath.item) else { return }
         print(user)
     }
     

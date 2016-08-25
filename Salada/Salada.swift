@@ -35,7 +35,7 @@ public protocol Tasting {
 public extension Tasting where Self.Tsp: IngredientType, Self.Tsp == Self {
     
     public static func observeSingle(eventType: FIRDataEventType, block: ([Tsp]) -> Void) {
-        self.ref.observeSingleEventOfType(eventType, withBlock: { (snapshot) in
+        self.ref.observeSingleEvent(of: eventType, with: { (snapshot) in
             var children: [Tsp] = []
             snapshot.children.forEach({ (snapshot) in
                 if let snapshot: FIRDataSnapshot = snapshot as? FIRDataSnapshot {
@@ -49,7 +49,7 @@ public extension Tasting where Self.Tsp: IngredientType, Self.Tsp == Self {
     }
     
     public static func observeSingle(id: String, eventType: FIRDataEventType, block: (Tsp) -> Void) {
-        self.ref.child(id).observeSingleEventOfType(eventType, withBlock: { (snapshot) in
+        self.ref.child(id).observeSingleEvent(of: eventType, with: { (snapshot) in
             if let tsp: Tsp = Tsp(snapshot: snapshot) {
                 block(tsp)
             }
@@ -64,10 +64,10 @@ public class Ingredient: NSObject, IngredientType, Tasting {
     
     public static var path: String {
         let type = Mirror(reflecting: self).subjectType
-        return String(type).componentsSeparatedByString(".").first!.lowercaseString
+        return String(type).components(separatedBy: ".").first!.lowercased()
     }
     
-    private var tmpID: String = NSUUID().UUIDString
+    private var tmpID: String = NSUUID().uuidString
     
     public var id: String {
         if let id: String = self.snapshot?.key { return id }
@@ -83,7 +83,7 @@ public class Ingredient: NSObject, IngredientType, Tasting {
                 Mirror(reflecting: self).children.forEach { (key, _) in
                     if let key: String = key {
                         if !self.ignore.contains(key) {
-                            if let newValue: AnyObject = self.decode(key, value: value) {
+                            if let newValue: AnyObject = self.decode(key: key, value: value) {
                                 self.setValue(newValue, forKey: key)
                                 return
                             }
@@ -94,7 +94,7 @@ public class Ingredient: NSObject, IngredientType, Tasting {
                             } else if let value: AnyObject = value[key] {
                                 self.setValue(value, forKey: key)
                             }
-                            self.addObserver(self, forKeyPath: key, options: [.New, .Old], context: nil)
+                            self.addObserver(self, forKeyPath: key, options: [.new, .old], context: nil)
                         }
                     }
                 }
@@ -102,13 +102,13 @@ public class Ingredient: NSObject, IngredientType, Tasting {
         }
     }
     
-    private func _setSnapshot(snapshot: FIRDataSnapshot) {
+    private func _setSnapshot(_ snapshot: FIRDataSnapshot) {
         self.snapshot = snapshot
     }
     
     public var createdAt: NSDate {
         if let serverTimestamp: Double = self.serverTimestamp {
-            let timestamp: NSTimeInterval = NSTimeInterval(serverTimestamp / 1000)
+            let timestamp: TimeInterval = TimeInterval(serverTimestamp / 1000)
             return NSDate(timeIntervalSince1970: timestamp)
         }
         return self.localTimestamp
@@ -143,15 +143,15 @@ public class Ingredient: NSObject, IngredientType, Tasting {
         mirror.children.forEach { (key, value) in
             if let key: String = key {
                 if !self.ignore.contains(key) {
-                    if let newValue: AnyObject = self.encode(key, value: value) {
+                    if let newValue: AnyObject = self.encode(key: key, value: value) {
                         object[key] = newValue
                         return
                     }
                     switch value.self {
                     case is String: if let value: String = value as? String { object[key] = value }
                     case is Int: if let value: Int = value as? Int { object[key] = value }
-                    case is [String]: if let value: [String] = value as? [String] where !value.isEmpty { object[key] = value }
-                    case is Set<String>: if let value: Set<String> = value as? Set<String> where !value.isEmpty { object[key] = value.toKeys() }
+                    case is [String]: if let value: [String] = value as? [String], !value.isEmpty { object[key] = value }
+                    case is Set<String>: if let value: Set<String> = value as? Set<String>, !value.isEmpty { object[key] = value.toKeys() }
                     default: if let value: AnyObject = value as? AnyObject { object[key] = value }
                     }
                 }
@@ -175,7 +175,7 @@ public class Ingredient: NSObject, IngredientType, Tasting {
     // MARK: - Save
     
     public func save() {
-        self.save(nil)
+        self.save(completion: nil)
     }
     
     public func save(completion: ((NSError?, FIRDatabaseReference) -> Void)?) {
@@ -184,7 +184,7 @@ public class Ingredient: NSObject, IngredientType, Tasting {
             value["_timestamp"] = FIRServerValue.timestamp()
             self.dynamicType.ref.childByAutoId().setValue(value, withCompletionBlock: { (error, ref) in
                 if let error: NSError = error { print(error) }
-                self.dynamicType.ref.child(ref.key).observeSingleEventOfType(.Value, withBlock: { (snapshot) in
+                self.dynamicType.ref.child(ref.key).observeSingleEvent(of: .value, with: { (snapshot) in
                     self.snapshot = snapshot
                     completion?(error, ref)
                 })                
@@ -201,35 +201,34 @@ public class Ingredient: NSObject, IngredientType, Tasting {
     
     // MARK: - KVO
     
-    override public func observeValueForKeyPath(keyPath: String?, ofObject object: AnyObject?, change: [String : AnyObject]?, context: UnsafeMutablePointer<Void>) {
-
+    public override func observeValue(forKeyPath keyPath: String?, of object: AnyObject?, change: [NSKeyValueChangeKey : AnyObject]?, context: UnsafeMutablePointer<Void>?) {
         guard let keyPath: String = keyPath else {
-            super.observeValueForKeyPath(nil, ofObject: object, change: change, context: context)
+            super.observeValue(forKeyPath: nil, of: object, change: change, context: context)
             return
         }
         
         guard let object: AnyObject = object else {
-            super.observeValueForKeyPath(keyPath, ofObject: nil, change: change, context: context)
+            super.observeValue(forKeyPath: keyPath, of: nil, change: change, context: context)
             return
         }
         
         let keys: [String] = Mirror(reflecting: self).children.flatMap({ return $0.label })
         if keys.contains(keyPath) {
-            if var value: AnyObject = object.valueForKey(keyPath) {
+            if var value: AnyObject = object.value(forKeyPath: keyPath) {
                 if let values: Set<String> = value as? Set<String> {
                     if values.isEmpty { return }
-                    if let change: [String: AnyObject] = change {
-
-                        let new: Set<String> = change["new"] as! Set<String>
-                        let old: Set<String> = change["old"] as! Set<String>
+                    if let change: [NSKeyValueChangeKey: AnyObject] = change {
+                        
+                        let new: Set<String> = change[.newKey] as! Set<String>
+                        let old: Set<String> = change[.oldKey] as! Set<String>
                         
                         // Added
-                        new.subtract(old).forEach({ (id) in
+                        new.subtracting(old).forEach({ (id) in
                             self.dynamicType.ref.child(self.id).child(keyPath).child(id).setValue(true)
                         })
                         
                         // Remove
-                        old.subtract(new).forEach({ (id) in
+                        old.subtracting(new).forEach({ (id) in
                             self.dynamicType.ref.child(self.id).child(keyPath).child(id).removeValue()
                         })
                         value = values.toKeys()
@@ -241,7 +240,7 @@ public class Ingredient: NSObject, IngredientType, Tasting {
                 }
             }
         } else {
-            super.observeValueForKeyPath(keyPath, ofObject: object, change: change, context: context)
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
     }
     
@@ -279,26 +278,25 @@ public class Salada<T: Ingredient where T: IngredientType, T: Tasting>: NSObject
     public var ref: FIRDatabaseReference?
     public var bowl: [T] = []
     public var count: Int { return bowl.count }
-    public var sortDescriptors: [NSSortDescriptor] = []
-    
-    public func objectAtIndex(index: Int) -> T? {
+    public var sortDescriptors: [SortDescriptor] = []
+    public func object(at index: Int) -> T? {
         return bowl[index]
     }
     
-    public func indexOfObject(tsp: T) -> Int? {
-        return bowl.indexOf({ $0.id == tsp.id })
+    public func indexOfObject(_ tsp: T) -> Int? {
+        return bowl.index(where: { $0.id == tsp.id })
     }
     
     deinit {
         print(#function)
         if let handle: UInt = self.addedHandle {
-            self.ref?.removeObserverWithHandle(handle)
+            self.ref?.removeObserver(withHandle: handle)
         }
         if let handle: UInt = self.changedHandle {
-            self.ref?.removeObserverWithHandle(handle)
+            self.ref?.removeObserver(withHandle: handle)
         }
         if let handle: UInt = self.removedHandle {
-            self.ref?.removeObserverWithHandle(handle)
+            self.ref?.removeObserver(withHandle: handle)
         }
     }
     
@@ -312,13 +310,13 @@ public class Salada<T: Ingredient where T: IngredientType, T: Tasting>: NSObject
         
         let salada: Salada<T> = Salada()
         salada.ref = T.ref
-        salada.addedHandle = salada.ref?.queryLimitedToLast(10).observeEventType(.ChildAdded, withBlock: { [weak salada](snapshot) in
+        salada.addedHandle = salada.ref?.queryLimited(toLast: 10).observe(.childAdded, with: { [weak salada](snapshot) in
             print("added")
             guard let salada = salada else { return }
             if let t: T = T(snapshot: snapshot) {
                 objc_sync_enter(salada)
                 salada.bowl.append(t)
-                let bowl: [T] = salada.bowl.sort(sortDescriptors: salada.sortDescriptors)
+                let bowl: [T] = salada.bowl.sorted(sortDescriptors: salada.sortDescriptors)
                 salada.bowl = bowl
                 let index: Int = salada.indexOfObject(t)!
                 block(SaladaChange(deletions: [], insertions: [index], modifications: []))
@@ -326,7 +324,7 @@ public class Salada<T: Ingredient where T: IngredientType, T: Tasting>: NSObject
             }
         })
         
-        salada.changedHandle = salada.ref?.observeEventType(.ChildChanged, withBlock: { [weak salada](snapshot) in
+        salada.changedHandle = salada.ref?.observe(.childChanged, with: { [weak salada](snapshot) in
             print("change")
             guard let salada = salada else { return }
             if let t: T = T(snapshot: snapshot) {
@@ -336,12 +334,12 @@ public class Salada<T: Ingredient where T: IngredientType, T: Tasting>: NSObject
             }
         })
         
-        salada.removedHandle = salada.ref?.observeEventType(.ChildRemoved, withBlock: { [weak salada](snapshot) in
+        salada.removedHandle = salada.ref?.observe(.childRemoved, with: { [weak salada](snapshot) in
             print("remove")
             guard let salada = salada else { return }
             if let t: T = T(snapshot: snapshot) {
                 if let index: Int = salada.indexOfObject(t) {
-                    salada.bowl.removeAtIndex(index)
+                    salada.bowl.remove(at: index)
                     block(SaladaChange(deletions: [index], insertions: [], modifications: []))
                 }
             }
@@ -354,7 +352,7 @@ public class Salada<T: Ingredient where T: IngredientType, T: Tasting>: NSObject
 
 // MARK: -
 
-extension CollectionType where Generator.Element == String {
+extension Collection where Iterator.Element == String {
     func toKeys() -> [String: Bool] {
         if self.isEmpty { return [:] }
         var keys: [String: Bool] = [:]
@@ -365,20 +363,20 @@ extension CollectionType where Generator.Element == String {
     }
 }
 
-extension SequenceType where Generator.Element : AnyObject {
+extension Sequence where Iterator.Element : AnyObject {
     /// Return an `Array` containing the sorted elements of `source`
     /// using criteria stored in a NSSortDescriptors array.
-    @warn_unused_result
-    public func sort(sortDescriptors theSortDescs: [NSSortDescriptor]) -> [Self.Generator.Element] {
-        return sort {
-            for sortDesc in theSortDescs {
-                switch sortDesc.compareObject($0, toObject: $1) {
-                case .OrderedAscending: return true
-                case .OrderedDescending: return false
-                case .OrderedSame: continue
+
+    public func sorted(sortDescriptors: [SortDescriptor]) -> [Self.Iterator.Element] {
+        return sorted(isOrderedBefore: { (o1, o2) -> Bool in
+            for sortDescriptor in sortDescriptors {
+                switch sortDescriptor.compare(o1, to: o2) {
+                case .orderedAscending: return true
+                case .orderedDescending: return false
+                case .orderedSame: continue
                 }
             }
             return false
-        }
+        })
     }
 }

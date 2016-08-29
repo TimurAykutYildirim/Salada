@@ -11,5 +11,5 @@ import Foundation
 class Group: Ingredient {
     typealias Tsp = Group
     dynamic var name: String?
-    dynamic var users: Set<String> = []
+    dynamic var users: Relation = []
 }

@@ -132,11 +132,17 @@ public class Ingredient: NSObject, IngredientType, Tasting {
                                         self.setValue(file, forKey: key)
                                     }
                                 }
+                            } else if subjectType == Relation?.self || subjectType == Relation.self {                                
+                                if let value: [String: Bool] = snapshot[key] as? [String: Bool] {
+                                    self.setValue(Relation(Array(value.keys)), forKey: key)
+                                }
                             } else if let value: [Int: AnyObject] = snapshot[key] as? [Int: AnyObject] {
                                 print(value, key)
                                 // TODO array
+                            } else if let value: [String: Bool] = snapshot[key] as? [String: Bool] {
+                                self.setValue(value, forKey: key)
                             } else if let value: [String: AnyObject] = snapshot[key] as? [String: AnyObject] {
-                                self.setValue(Set(value.keys), forKey: key)
+                                self.setValue(value, forKey: key)
                             } else if let value: AnyObject = snapshot[key] {
                                 self.setValue(value, forKey: key)
                             }
@@ -188,11 +194,8 @@ public class Ingredient: NSObject, IngredientType, Tasting {
                     case is NSDate: if let value: NSDate = value as? NSDate { object[key] = value.timeIntervalSince1970 }
                     case is Int: if let value: Int = value as? Int { object[key] = value }
                     case is [String]: if let value: [String] = value as? [String] where !value.isEmpty { object[key] = value }
-                    case is Set<String>: if let value: Set<String> = value as? Set<String> where !value.isEmpty { object[key] = value.toKeys() }
-                    case is File:
-                        if let file: File = value as? File {
-                            file.parent = self
-                        }
+                    case is Relation: if let value: Relation = value as? Relation where !value.isEmpty { object[key] = value.toKeys() }
+                    case is File: if let file: File = value as? File { file.parent = self }
                     default: if let value: AnyObject = value as? AnyObject { object[key] = value }
                     }
                 }
@@ -293,12 +296,12 @@ public class Ingredient: NSObject, IngredientType, Tasting {
                             })
                         }
                     }
-                } else if let values: Set<String> = value as? Set<String> {
+                } else if let values: Relation = value as? Relation {
                     if values.isEmpty { return }
                     if let change: [String: AnyObject] = change {
                         
-                        let new: Set<String> = change["new"] as! Set<String>
-                        let old: Set<String> = change["old"] as! Set<String>
+                        let new: Relation = change["new"] as! Relation
+                        let old: Relation = change["old"] as! Relation
                         
                         // Added
                         new.subtract(old).forEach({ (id) in
@@ -533,8 +536,70 @@ public class File: NSObject {
 
 // MARK: -
 
-extension CollectionType where Generator.Element == String {
-    func toKeys() -> [String: Bool] {
+public class Relation: NSObject, CollectionType, SequenceType, ArrayLiteralConvertible {
+    
+    public typealias Element = String
+    
+    public required init(arrayLiteral elements: Relation.Element...) {
+        self.objects = elements
+    }
+    
+    init(_ objects: [String]) {
+        self.objects = objects
+    }
+    
+    private var objects: [String] = []
+    
+    public var count: Int {
+        return self.objects.count
+    }
+    
+    public var isEmpty: Bool {
+        return self.objects.count == 0
+    }
+    
+    public var startIndex: Int {
+        return 0
+    }
+    
+    public var endIndex: Int {
+        return count - 1
+    }
+    
+    public subscript(index: Int) -> String {
+        get { return self.objects[index] }
+    }
+    
+    public func generate() -> AnyGenerator<String> {
+        var index: Int = 0
+        return AnyGenerator<String> {
+            if index < self.objects.count {
+                let result = self.objects[index]
+                index += 1
+                return result
+            }
+            return nil
+        }
+    }
+    
+    public func insert(element: String) {
+        if !self.objects.contains(element) {
+            self.objects.append(element)
+        }
+    }
+    
+    public func remove(element: String) {
+        if let index: Int = self.objects.indexOf(element) {
+            self.objects.removeAtIndex(index)
+        }
+    }
+    
+    public func subtract(relation: Relation) -> Relation {
+        let substact: Set<String> = Set(objects).subtract(relation.objects)
+        return Relation(Array(substact))
+    }
+    
+    public func toKeys() -> [String: Bool] {
         if self.isEmpty { return [:] }
         var keys: [String: Bool] = [:]
         self.forEach { (object) in
@@ -542,6 +607,7 @@ extension CollectionType where Generator.Element == String {
         }
         return keys
     }
+    
 }
 
 extension SequenceType where Generator.Element : AnyObject {

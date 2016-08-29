@@ -19,7 +19,7 @@ class User: Ingredient {
     dynamic var name: String?
     dynamic var age: Int = 0
     dynamic var gender: String?
-    dynamic var groups: Set<String> = []
+    dynamic var groups: Relation = []
     dynamic var items: [String] = []
     dynamic var location: CLLocation?
     dynamic var url: NSURL?
